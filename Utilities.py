@@ -2,6 +2,7 @@ import os
 import cv2
 import numpy as np
 from keras.models import Sequential
+import copy
 
 modelDir = "./SavedModels/"
 if not os.path.exists(modelDir):
@@ -35,3 +36,18 @@ def DisplayPrediction(image: np.ndarray, weather: str = None):
         image, weather, (text_x, text_y), font, font_scale, font_color, line_type
     )
     return image
+
+
+
+def DrawBoundaryBoxs(
+    image: np.ndarray,
+    boundryBoxes: list,
+    color: tuple = (0, 255, 0),
+    thickness: int = 2,
+):
+    boundaryBoxImage = copy.deepcopy(image)
+    for [[x1, y1], [x2, y2]] in boundryBoxes:
+        boundaryBoxImage = cv2.rectangle(
+            boundaryBoxImage, (int(x1), int(y1)), (int(x2), int(y2)), color, thickness
+        )
+    return boundaryBoxImage

@@ -108,7 +108,8 @@ class WeatherPrediction:
         return model
     
     def ValidateModel(self, model: Sequential, X_test: np.ndarray, y_test: np.ndarray):
-        model.evaluate(X_test, y_test)
+        valuation  = model.evaluate(X_test, y_test, verbose=0)
+        print(valuation)
         return None
     
     def Predict(self, model: Sequential, images: np.ndarray):
