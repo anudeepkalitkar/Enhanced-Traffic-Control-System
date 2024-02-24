@@ -91,12 +91,15 @@ def TrainCarDetection():
     carImageDataset, carAnnotations, imageWidth, imageHeight = carDetection.LoadDataset(
         CarAnnotationsFolder, CarImagesFolderPath
     )
+    print(carImageDataset.shape, carAnnotations.shape)
     start = 0
     print("Training Model")
-    for i in range(1, 11):
-        end = start + carImageDataset.shape[0] // 10
-        carDetection.fit(carImageDataset[start:end], carAnnotations[start:end])
-        start = end
+    carDetection.fit(carImageDataset, carAnnotations)
+    
+    # for i in range(1, 11):
+    #     end = start + carImageDataset.shape[0] // 10
+    #     carDetection.fit(carImageDataset[start:end], carAnnotations[start:end])
+    #     start = end
 
     modelSaved = SaveModels(carDetection.NN_model, "CarDetectionModel")
     if modelSaved:
@@ -143,15 +146,18 @@ def ValidateCarDetection():
     bBoxes = []
     for i in range(0, len(preds), 4):
         bBox = [
-            [preds[i] * imageWidth, preds[i + 1] * imageHeight],
-            [preds[i + 2] * imageWidth, preds[i + 3] * imageHeight],
+            [preds[i] * imageHeight, preds[i + 1] * imageWidth],
+            [preds[i + 2] * imageHeight, preds[i + 3] * imageWidth],
         ]
-        bBoxes.append(bBox)
+        if(bBox[0][0]>=0 and bBox[0][1]>=0 and bBox[1][0]>=0 and bBox[1][1]>=0 ):
+            bBoxes.append(bBox)
+            
+        
     BBtestingImage = DrawBoundaryBoxs(testingImage, bBoxes)
-    ShowImage("test", BBtestingImage)
+    ShowImage("pred", BBtestingImage)
 
 
-TrainWeatherPrediction()
-ValidateWeatherPrediction()
+# TrainWeatherPrediction()
+# ValidateWeatherPrediction()
 TrainCarDetection()
 ValidateCarDetection()
