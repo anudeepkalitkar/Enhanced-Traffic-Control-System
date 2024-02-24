@@ -43,11 +43,12 @@ def DrawBoundaryBoxs(
     image: np.ndarray,
     boundryBoxes: list,
     color: tuple = (0, 255, 0),
-    thickness: int = 2,
+    thickness: int = 5,
 ):
     boundaryBoxImage = copy.deepcopy(image)
     for [[x1, y1], [x2, y2]] in boundryBoxes:
         boundaryBoxImage = cv2.rectangle(
             boundaryBoxImage, (int(x1), int(y1)), (int(x2), int(y2)), color, thickness
         )
+   
     return boundaryBoxImage

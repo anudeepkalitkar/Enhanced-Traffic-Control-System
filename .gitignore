@@ -162,4 +162,4 @@ cython_debug/
 
 Datasets/*
 **.DS_Store
-*/SavedModels/*
+**/SavedModels/

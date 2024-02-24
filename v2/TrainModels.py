@@ -17,7 +17,7 @@ if len(physicalDevices) > 0:
 
 
 from WeatherPrediction import WeatherPrediction
-from CarDetection2 import CarDetection
+from CarDetection import CarDetection
 
 WeatherAnnotationsFolder = (
     "../MSCourseProject Dataset/Boulder Traffic Cam Datasets/Annotations/"
@@ -141,8 +141,11 @@ def ValidateCarDetection():
             ],
         ]
         bBoxes.append(bBox)
+  
+        
     BBtestingImage = DrawBoundaryBoxs(testingImage, bBoxes)
     ShowImage("test", BBtestingImage)
+    
     bBoxes = []
     for i in range(0, len(preds), 4):
         bBox = [
@@ -151,13 +154,14 @@ def ValidateCarDetection():
         ]
         if(bBox[0][0]>=0 and bBox[0][1]>=0 and bBox[1][0]>=0 and bBox[1][1]>=0 ):
             bBoxes.append(bBox)
+    
+   
             
-        
     BBtestingImage = DrawBoundaryBoxs(testingImage, bBoxes)
     ShowImage("pred", BBtestingImage)
 
 
 # TrainWeatherPrediction()
 # ValidateWeatherPrediction()
-TrainCarDetection()
+# TrainCarDetection()
 ValidateCarDetection()
