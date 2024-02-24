@@ -17,7 +17,7 @@ if len(physicalDevices) > 0:
 
 
 from WeatherPrediction import WeatherPrediction
-from CarDetection import CarDetection
+from CarDetection2 import CarDetection
 
 WeatherAnnotationsFolder = (
     "../MSCourseProject Dataset/Boulder Traffic Cam Datasets/Annotations/"
