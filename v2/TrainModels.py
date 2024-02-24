@@ -20,13 +20,13 @@ from WeatherPrediction import WeatherPrediction
 from CarDetection import CarDetection
 
 WeatherAnnotationsFolder = (
-    "../MSCourseProject Dataset/Boulder Traffic Cam Datasets/Annotations/"
+    "../../MSCourseProject Dataset/Boulder Traffic Cam Datasets/Annotations/"
 )
 WeatherImagesFolderPath = (
-    "../MSCourseProject Dataset/Boulder Traffic Cam Datasets/Images/"
+    "../../MSCourseProject Dataset/Boulder Traffic Cam Datasets/Images/"
 )
-CarAnnotationsFolder = "../MSCourseProject Dataset/CarsDataset/Annotations/"
-CarImagesFolderPath = "../MSCourseProject Dataset/CarsDataset/Images/"
+CarAnnotationsFolder = "../../MSCourseProject Dataset/CarsDataset/Annotations/"
+CarImagesFolderPath = "../../MSCourseProject Dataset/CarsDataset/Images/"
 
 
 def TrainWeatherPrediction():

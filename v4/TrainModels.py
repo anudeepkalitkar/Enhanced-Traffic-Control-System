@@ -127,40 +127,37 @@ def ValidateCarDetection():
     print(len(carAnnotations[index]), len(preds))
     print(carAnnotations[index])
     print(preds)
-
-    bBoxes = []
-    for i in range(0, len(carAnnotations[index]), 4):
-        bBox = [
-            [
-                carAnnotations[index][i] * imageHeight,
-                carAnnotations[index][i + 1] * imageWidth,
-            ],
-            [
-                carAnnotations[index][i + 2] * imageHeight,
-                carAnnotations[index][i + 3] * imageWidth,
-            ],
-        ]
-        bBoxes.append(bBox)
     
-  
+    bBoxes = []
+    for i in range(0, len(carAnnotations[index]), 3):
+        if(carAnnotations[index][i]):
+            bBox = [
+            
+                    carAnnotations[index][i+1] * imageHeight,
+                    carAnnotations[index][i + 2] * imageWidth,
+            
+            ]
+            bBoxes.append(bBox)
         
     BBtestingImage = DrawBoundaryBoxs(testingImage, bBoxes)
     ShowImage("test", BBtestingImage)
     
+    
     bBoxes = []
-    for i in range(0, len(preds), 4):
-        bBox = [
-            [preds[i] * imageHeight, preds[i + 1] * imageWidth],
-            [preds[i + 2] * imageHeight, preds[i + 3] * imageWidth],
-        ]
-        if(bBox[0][0]>=0 and bBox[0][1]>=0 and bBox[1][0]>=0 and bBox[1][1]>=0 ):
-            bBoxes.append(bBox)
- 
+    for i in range(0, len(preds),3):
+        if(preds[i]>0.5):
+            bBox = [
+                preds[i+1] * imageHeight, preds[i + 2] * imageWidth
+                
+            ]
+            if(bBox[0]>=0 and bBox[1]>=0 ):
+                bBoxes.append(bBox)
+            
     BBtestingImage = DrawBoundaryBoxs(testingImage, bBoxes)
     ShowImage("pred", BBtestingImage)
 
 
 # TrainWeatherPrediction()
 # ValidateWeatherPrediction()
-# TrainCarDetection()
+TrainCarDetection()
 ValidateCarDetection()
