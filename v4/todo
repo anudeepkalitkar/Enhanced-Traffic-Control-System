@@ -1,5 +1,5 @@
-create New NNModel with 2 diffrenty outputs
-Create custom loss function
+create New NNModel with 2 diffrenty outputs -  done
+Create custom loss function - done
 use FindMajorColor only once
 check all 4 image manipulationss
-
+Change all Parameter passing

@@ -9,7 +9,7 @@ from sklearn.base import BaseEstimator
 from sklearn.model_selection import train_test_split
 from keras.models import Sequential, Model
 from keras.layers import Conv2D, MaxPool2D, Dense, Flatten, Dropout, Input
-from keras.losses import Huber
+from keras.losses import categorical_crossentropy, huber
 
 
 class CarDetection(BaseEstimator):
@@ -24,16 +24,26 @@ class CarDetection(BaseEstimator):
         bilateralFilter_sigmaSpace: float = 17,
         canny_lowerThreshold: float = 0,
         canny_upperThreshold: float = 0,
-        NN_lossFunction=Huber(delta=1.0),
-        NN_optimizer: str = "adam",
-        NN_metrics: list = ["mean_squared_error", "accuracy"],
-        NN_inputShape: tuple = (540,960 ),
-        numVechiles: int = 123,
-        NN_epochs: int = 100,
-        NN_batchSize: int = 32,
-        NN_callbacks: list = [],
-        cameraMargin: dict = {},
+        NN_lossFunction=None,
+        NN_optimizer: str = None,
+        NN_metrics: list = None,
+        NN_inputShape: tuple = None,
+        maxNumVehicles: int = None,
+        NN_epochs: int = None,
+        NN_batchSize: int = None,
+        NN_callbacks: list = None,
+        cameraMargin: dict = None,
         NN_model: Sequential = None,
+        # NN_lossFunction=None,
+        # NN_optimizer: str = "adam",
+        # NN_metrics: list = ["mean_squared_error", "accuracy"],
+        # NN_inputShape: tuple = (540, 960),
+        # maxNumVehicles: int = 123,
+        # NN_epochs: int = 100,
+        # NN_batchSize: int = 32,
+        # NN_callbacks: list = [],
+        # cameraMargin: dict = {},
+        # NN_model: Sequential = None,
     ):
         self.BW_lowerWhite = BW_lowerWhite
         self.BW_upperWhite = BW_upperWhite
@@ -48,102 +58,23 @@ class CarDetection(BaseEstimator):
         self.NN_optimizer = NN_optimizer
         self.NN_metrics = NN_metrics
         self.NN_inputShape = NN_inputShape
-        self.numVechiles = numVechiles
+        self.maxNumVehicles = maxNumVehicles
         self.NN_epochs = NN_epochs
         self.NN_batchSize = NN_batchSize
         self.NN_callbacks = NN_callbacks
         self.cameraMargin = cameraMargin
-        if NN_model is None:
-            self.NN_model = self.CreateNNModel()
-        else:
-            self.NN_model = NN_model
-
-    def FindMaxDimensions(self, imageList: list):
-        maxWidth = 0
-        maxHeight = 0
-        for img in imageList:
-            h, w = img.shape[:2]
-            if h > maxHeight:
-                maxHeight = h
-            if w > maxWidth:
-                maxWidth = w
-        return maxWidth, maxHeight
-
-    def ConvertDatasettoNumpy(self, imageList: list, annotationList: list):
-
-        # imageDataset = np.array(imageList)
-        # maxLines = 0
-        # for annotation in annotationList:
-        #     if maxLines < len(annotation):
-        #         maxLines = len(annotation)
-        # annotations = np.zeros((len(annotationList), maxLines, 4))
-        # height, width = imageDataset[0].shape[:2]
-
-        # for i, bBoxAnnotation in enumerate(annotationList):
-        #     for j, bBox in enumerate(bBoxAnnotation):
-        #         if j < maxLines:
-        #             x1 = bBox[0][0] / height
-        #             y1 = bBox[0][1] / width
-        #             x2 = bBox[1][0] / height
-        #             y2 = bBox[1][1] / width
-        #             annotations[i, j] = [x1, y1, x2, y2]
-
-        # annotations = annotations.reshape(len(annotationList), -1)
-        # return imageDataset, annotations, width, height
-        imageDataset = np.array(imageList)
-        maxLines = 0
-        for annotation in annotationList:
-            if maxLines < len(annotation) :
-                maxLines = len(annotation)
-        self.NN_numberofOutputNeurons = maxLines
-        annotations = np.zeros((len(annotationList), maxLines, 3))
-        height, width = imageDataset[0].shape[:2]
-
-        for i, bBoxAnnotation in enumerate(annotationList):
-            for j, bBox in enumerate(bBoxAnnotation):
-                if j < maxLines:
-                    x = abs(bBox[0][0] + bBox[1][0]) / (2*height)
-                    y = abs(bBox[0][1] + bBox[1][1]) / (2*width)
-                    annotations[i, j] = [1, x,y]
-
-        annotations = annotations.reshape(len(annotationList), -1)
-        return imageDataset, annotations, width, height
-    
-    
-
-    def ResizeImage(
-        self, capturedImage: np.ndarray, bBoxs: list, resizeScale = None
-    ):
-        newDimentions = (self.NN_inputShape[1], self.NN_inputShape[0])
-        if type(resizeScale) == type(int):
-            newDimentions = (
-                int(capturedImage.shape[1] * resizeScale / 100),
-                int(capturedImage.shape[0] * resizeScale / 100),
-            )
-        resizedImage = cv2.resize(capturedImage, newDimentions)
-        widthScale = newDimentions[0] / capturedImage.shape[1]
-        heightScale = newDimentions[1] / capturedImage.shape[0]
-        newbBoxs = []
-        for bBox in bBoxs:
-            x1 = int(bBox[0][0] * widthScale)
-            y1 = int(bBox[0][1] * heightScale)
-            x2 = int(bBox[1][0] * widthScale)
-            y2 = int(bBox[1][1] * heightScale)
-            newbBoxs.append([[x1, y1], [x2, y2]])
-
-        return resizedImage, newbBoxs
+        self.NN_model = NN_model
 
     def LoadDataset(self, annotationsFolder: str, imagesFolderPath: str):
         if not (os.path.isdir(annotationsFolder) and os.path.isdir(imagesFolderPath)):
             print("Please ensure that annotationsFolder and imagesFolderPath are valid")
             return None
-
         annotationFileNames = os.listdir(annotationsFolder)
         imageDataset = []
         annotations = []
         for annotationFileName in tqdm(annotationFileNames):
             imageFileName = annotationFileName.split(".")[0] + ".png"
-            if(os.path.exists(imagesFolderPath + imageFileName)):
+            if os.path.exists(imagesFolderPath + imageFileName):
                 originalImage = cv2.imread(imagesFolderPath + imageFileName)
                 originalImage = cv2.cvtColor(originalImage, cv2.COLOR_BGR2RGB)
 
@@ -155,64 +86,76 @@ class CarDetection(BaseEstimator):
                     for point in points:
                         newPoints.append([round(point[0]), round(point[1])])
                     bBoxes.append(newPoints)
-                resizedImage, newbBoxs = self.ResizeImage(originalImage, bBoxes)
-                imageDataset.append(resizedImage)
-                annotations.append(newbBoxs)
+                imageDataset.append(originalImage)
+                annotations.append(bBoxes)
 
-        imageDataset, annotations, width, height = self.ConvertDatasettoNumpy(
-            imageDataset, annotations
-        )
+        return imageDataset, annotations
 
-        return imageDataset, annotations, width, height
-
-    def fit(self, X, y):
-        print("PreProcessing X")
-        X_processed = [self.PreProcessImage(image) for image in tqdm(X)]
-        X_processed = np.array(X_processed)
-        y_processed = np.array(y)
-
-        if len(X_processed.shape) == 3:
-            X_processed = X_processed.reshape(
-                X_processed.shape[0], X_processed.shape[1], X_processed.shape[2], 1
+    def ResizeImage(self, capturedImage: np.ndarray, bBoxs: list, resizeScale=None):
+        newDimentions = (self.NN_inputShape[1], self.NN_inputShape[0])
+        if type(resizeScale) == type(int):
+            newDimentions = (
+                int(capturedImage.shape[1] * resizeScale / 100),
+                int(capturedImage.shape[0] * resizeScale / 100),
             )
+        resizedImage = cv2.resize(capturedImage, newDimentions)
+        widthScale = newDimentions[0] / capturedImage.shape[1]
+        heightScale = newDimentions[1] / capturedImage.shape[0]
+        resizedBBoxs = []
+        for bBox in bBoxs:
+            x1 = int(bBox[0][0] * widthScale)
+            y1 = int(bBox[0][1] * heightScale)
+            x2 = int(bBox[1][0] * widthScale)
+            y2 = int(bBox[1][1] * heightScale)
+            resizedBBoxs.append([[x1, y1], [x2, y2]])
 
-        X_train, X_test, y_train, y_test = train_test_split(
-            X_processed, y_processed, test_size=0.2, random_state=42
-        )
+        return resizedImage, resizedBBoxs
 
-        self.TrainNNModel(X_train, y_train)
-        return self
+    def ConvertDatasettoNumpy(self, imageList: list, annotationList: list):
+        imageDataset = np.array(imageList)
+        maxVehicles = 0
+        for annotation in annotationList:
+            if maxVehicles < len(annotation):
+                maxVehicles = len(annotation)
+        self.maxNumVehicles = maxVehicles 
+        annotations = np.zeros((len(annotationList), maxVehicles*2, 2))
+        height, width = imageDataset[0].shape[:2]
+        
+        for i in range(len(annotationList)):
+            for j in range(maxVehicles):
+                annotations[i,j] = 0
+                
+        for i, bBoxAnnotation in enumerate(annotationList):
+            for j, bBox in enumerate(bBoxAnnotation):
+                if j < maxVehicles:
+                    x = abs(bBox[0][0] + bBox[1][0]) / (2 * height)
+                    y = abs(bBox[0][1] + bBox[1][1]) / (2 * width)
+                    annotations[i, maxVehicles+j] = [ x, y]
+                    annotations[i, j] = 1
 
-    def predict(self, X, y=None):
-        X_processed = [self.PreProcessImage(image) for image in tqdm(X)]
-        X_processed = np.array(X_processed)
+        annotations = annotations.reshape(len(annotationList), -1)
+        return imageDataset, annotations
 
-        if len(X_processed.shape) == 3:
-            X_processed = X_processed.reshape(
-                X_processed.shape[0], X_processed.shape[1], X_processed.shape[2], 1
+    def PreProcessDataset(self, imageDataset: list, annotations: list):
+        resizedImages = []
+        resizedAnnotations = []
+        for i in range(len(imageDataset)):
+            resizedImage, resizedBBoxs = self.ResizeImage(
+                imageDataset[i], annotations[i]
             )
+            resizedImages.append(resizedImage)
+            resizedAnnotations.append(resizedBBoxs)
 
-        return self.NN_model.predict(X_processed)
-
-    def PreProcessImage(self, capturedImage: np.ndarray):
+        height, width = resizedImages[0].shape[:2]
+        processedDataset, processedAnnotations = (
+            self.ConvertDatasettoNumpy(resizedImages, resizedAnnotations)
+        )
+        # nonMajorColorImage = self.RemoveMajorColor(capturedImage)
         
-        # nonMajorColorImage = cv2.cvtColor(capturedImage,cv2.COLOR_BGR2GRAY) 
-        # return nonMajorColorImage
-        
-        nonMajorColorImage = self.RemoveMajorColor(capturedImage)
-        blackWhiteImage = self.BlackWhiteConverstion(nonMajorColorImage)
-        cannyEdgeImage = self.CannyEdgeConverstion(blackWhiteImage)
-        
-        # cv2.imshow("nonMajorColorImage", nonMajorColorImage)
-        # cv2.imshow("blackWhiteImage", blackWhiteImage)
-        # cv2.imshow("cannyEdgeImage", cannyEdgeImage)
-        # cv2.waitKey()
-        return cannyEdgeImage
+        return processedDataset, processedAnnotations, width, height
 
     def CannyEdgeConverstion(self, capturedImage: np.ndarray):
-        # grayScale = cv2.cvtColor(capturedImage, cv2.COLOR_BGR2GRAY)
         bilateralFilter = cv2.bilateralFilter(
-            # grayScale,
             capturedImage,
             self.bilateralFilter_d,
             self.bilateralFilter_sigmaColor,
@@ -239,82 +182,51 @@ class CarDetection(BaseEstimator):
         )
         return blackWhiteImage
 
-    def is_not_white(self, color, threshold=220):
-        return np.all(color < threshold)
+    def ExtractImageFeatures(self, capturedImage: np.ndarray):
+        # nonMajorColorImage = cv2.cvtColor(capturedImage,cv2.COLOR_BGR2GRAY)
+        blackWhiteImage = self.BlackWhiteConverstion(capturedImage)
+        cannyEdgeImage = self.CannyEdgeConverstion(blackWhiteImage)
 
-    def FindMajorityColor(self, image: np.ndarray, n_clusters: int = 3):
-        pixels = image.reshape((-1, 3))
-        kmeans = KMeans(n_clusters=n_clusters)
-        kmeans.fit(pixels)
-        unique, counts = np.unique(kmeans.labels_, return_counts=True)
-        sortedIndices = np.argsort(-counts)
-        clusterCenters = kmeans.cluster_centers_[sortedIndices]
-        nonWhiteCenters = [
-            center for center in clusterCenters if self.is_not_white(center)
-        ]
-        majorColor = nonWhiteCenters[0] if nonWhiteCenters else clusterCenters[0]
-
-        return majorColor
-
-    def CreateMajorColorMask(self, image: np.ndarray, majorColor, threshold: int = 40):
-        lowerThreshold = np.maximum(majorColor - threshold, 0)
-        upperThreshold = np.minimum(majorColor + threshold, 255)
-        majorColorMask = cv2.inRange(image, lowerThreshold, upperThreshold)
-
-        return majorColorMask
-
-    def RemoveMajorColor(self, image: np.ndarray):
-        majorColor = self.FindMajorityColor(image)
-        majorColorMask = self.CreateMajorColorMask(image, majorColor)
-        blankWhiteImage = np.full(image.shape, 255, dtype=np.uint8)
-
-        nonMajorColorImage = cv2.bitwise_and(image, image, mask=~majorColorMask)
-        majorColortoWhiteImage = cv2.bitwise_and(
-            blankWhiteImage, blankWhiteImage, mask=majorColorMask
-        )
-        nonMajorColorImage = cv2.add(
-            nonMajorColorImage, majorColortoWhiteImage
-        )  # Combine the two
-
-        return nonMajorColorImage
+        # cv2.imshow("nonMajorColorImage", nonMajorColorImage)
+        # cv2.imshow("blackWhiteImage", blackWhiteImage)
+        # cv2.imshow("cannyEdgeImage", cannyEdgeImage)
+        # cv2.waitKey()
+        return cannyEdgeImage
 
     def CreateNNModel(self):
         inputLayer = Input(shape=(self.NN_inputShape[0], self.NN_inputShape[1], 1))
         layer1 = Conv2D(
-                16,
-                (3, 3),
-                activation="relu",
-                padding="valid",
-                
-            )(inputLayer)
+            16,
+            (3, 3),
+            activation="relu",
+            padding="valid",
+        )(inputLayer)
         layer1 = MaxPool2D((2, 2))(layer1)
-        
+
         layer2 = Conv2D(
-                32,
-                (3, 3),
-                activation="relu",
-                padding="valid",
-                
-            )(layer1)
+            32,
+            (3, 3),
+            activation="relu",
+            padding="valid",
+        )(layer1)
         layer2 = MaxPool2D((2, 2))(layer2)
-        
+
         layer3 = Conv2D(
-                32,
-                (3, 3),
-                activation="relu",
-                padding="valid",
-                
-            )(layer2)
+            64,
+            (3, 3),
+            activation="relu",
+            padding="valid",
+        )(layer2)
         layer3 = MaxPool2D((2, 2))(layer3)
-        
+
         flattenLayer = Flatten()(layer3)
-        
-        classificationOutput = Dense(self.numVechiles*2, activation="softmax", name="classification_output")(flattenLayer)
+
+        classificationOutput = Dense(
+            self.maxNumVehicles, activation="softmax", name="classification_output"
+        )(flattenLayer)
         bboxOutput = Dense(4, activation="linear", name="bbox_output")(flattenLayer)
 
-       
         NN_model = Model(inputs=inputLayer, outputs=[classificationOutput, bboxOutput])
-
 
         NN_model.compile(
             loss=self.NN_lossFunction,
@@ -322,6 +234,20 @@ class CarDetection(BaseEstimator):
             metrics=self.NN_metrics,
         )
         return NN_model
+
+    def CustomLossFunction(self, y_true, y_pred):
+        y_true_cls, y_true_bbox = (
+            y_true[..., : self.maxNumVehicles],
+            y_true[..., self.maxNumVehicles :],
+        )
+        y_pred_cls, y_pred_bbox = (
+            y_pred[..., : self.maxNumVehicles],
+            y_pred[..., self.maxNumVehicles :],
+        )
+        classificationLoss = categorical_crossentropy(y_true_cls, y_pred_cls)
+        bboxLoss = huber(y_true_bbox, y_pred_bbox)
+        totalLoss = classificationLoss + bboxLoss
+        return totalLoss
 
     def TrainNNModel(
         self,
@@ -336,6 +262,35 @@ class CarDetection(BaseEstimator):
             validation_split=0.2,
             callbacks=self.NN_callbacks,
         )
+
+    def fit(self, X, y):
+        print("PreProcessing X")
+        X_processed = [self.ExtractImageFeatures(image) for image in tqdm(X)]
+        X_processed = np.array(X_processed)
+        y_processed = np.array(y)
+
+        if len(X_processed.shape) == 3:
+            X_processed = X_processed.reshape(
+                X_processed.shape[0], X_processed.shape[1], X_processed.shape[2], 1
+            )
+
+        X_train, X_test, y_train, y_test = train_test_split(
+            X_processed, y_processed, test_size=0.2, random_state=42
+        )
+
+        self.TrainNNModel(X_train, y_train)
+        return self
+
+    def predict(self, X, y=None):
+        X_processed = [self.PreProcessImage(image) for image in tqdm(X)]
+        X_processed = np.array(X_processed)
+
+        if len(X_processed.shape) == 3:
+            X_processed = X_processed.reshape(
+                X_processed.shape[0], X_processed.shape[1], X_processed.shape[2], 1
+            )
+
+        return self.NN_model.predict(X_processed)
 
     def DisplayNNSummary(self):
         self.NN_model.summary()
