@@ -140,10 +140,48 @@ class CarDetection(BaseEstimator):
         annotations = annotations.reshape(len(annotationList), -1)
         return imageDataset, annotations
 
+
+    def is_not_white(self, color, threshold=220):
+        return np.all(color < threshold)
+    
+    
+    def FindMajorityColor(self, processedDataset: np.ndarray, n_clusters: int = 3):
+        pixels = processedDataset.reshape((-1, 3))
+        kmeans = KMeans(n_clusters=n_clusters)
+        kmeans.fit(pixels)
+        unique, counts = np.unique(kmeans.labels_, return_counts=True)
+        sortedIndices = np.argsort(-counts)
+        clusterCenters = kmeans.cluster_centers_[sortedIndices]
+        nonWhiteCenters = [
+            center for center in clusterCenters if self.is_not_white(center)
+        ]
+        majorColor = nonWhiteCenters[0] if nonWhiteCenters else clusterCenters[0]
+        return majorColor
+    
+    def RemoveMajorColor(self, processedDataset: np.ndarray, threshold: int = 40):
+        nonMajorColorImages = []
+        majorColor = self.FindMajorityColor(processedDataset)
+        lowerThreshold = np.maximum(majorColor - threshold, 0)
+        upperThreshold = np.minimum(majorColor + threshold, 255)
+        blankWhiteImage = np.full(processedDataset[0].shape, 255, dtype=np.uint8)
+        for image in tqdm(processedDataset):
+            majorColorMask = cv2.inRange(image, lowerThreshold, upperThreshold)
+            nonMajorColorImage = cv2.bitwise_and(image, image, mask=~majorColorMask)
+            majorColortoWhiteImage = cv2.bitwise_and(
+                blankWhiteImage, blankWhiteImage, mask=majorColorMask
+            )
+            nonMajorColorImage = cv2.add(
+                nonMajorColorImage, majorColortoWhiteImage
+            )  # Combine the two
+            nonMajorColorImages.append(nonMajorColorImage)
+        
+        return np.array(nonMajorColorImages)
+            
+        
     def PreProcessDataset(self, imageDataset: list, annotations: list):
         resizedImages = []
         resizedAnnotations = []
-        for i in range(len(imageDataset)):
+        for i in tqdm(range(len(imageDataset))):
             resizedImage, resizedBBoxs = self.ResizeImage(
                 imageDataset[i], annotations[i]
             )
@@ -154,8 +192,9 @@ class CarDetection(BaseEstimator):
         processedDataset, processedAnnotations = self.ConvertDatasettoNumpy(
             resizedImages, resizedAnnotations
         )
-        # nonMajorColorImage = self.RemoveMajorColor(capturedImage)
-
+        print("Removeing Major Color")
+        # nonMajorColorImages = self.RemoveMajorColor(processedDataset)
+        # print(nonMajorColorImages.shape)
         return processedDataset, processedAnnotations, width, height
 
     def CannyEdgeConverstion(self, capturedImage: np.ndarray):
@@ -168,6 +207,9 @@ class CarDetection(BaseEstimator):
         # imageMedian = np.median(capturedImage)
         # lowerThreshold = max(0, (0.7 * imageMedian))
         # upperThreshold = min(255, (0.7 * imageMedian))
+        # cannyEdgeImage = cv2.Canny(
+        #     bilateralFilter, lowerThreshold, upperThreshold
+        # )
         cannyEdgeImage = cv2.Canny(
             bilateralFilter, self.canny_lowerThreshold, self.canny_upperThreshold
         )
@@ -191,7 +233,7 @@ class CarDetection(BaseEstimator):
         blackWhiteImage = self.BlackWhiteConverstion(capturedImage)
         cannyEdgeImage = self.CannyEdgeConverstion(blackWhiteImage)
 
-        # cv2.imshow("nonMajorColorImage", nonMajorColorImage)
+        # cv2.imshow("nonMajorColorImage", capturedImage)
         # cv2.imshow("blackWhiteImage", blackWhiteImage)
         # cv2.imshow("cannyEdgeImage", cannyEdgeImage)
         # cv2.waitKey()
@@ -280,6 +322,7 @@ class CarDetection(BaseEstimator):
             X_processed, y_processed, test_size=0.2, random_state=42
         )
 
+        # self.TrainNNModel(X_processed, y_processed)
         self.TrainNNModel(X_train, y_train)
         return self
 
@@ -293,6 +336,19 @@ class CarDetection(BaseEstimator):
             )
 
         return self.model.predict(X_processed)
+    
+    def evaluate(self, X, y):
+        X_processed = [self.ExtractImageFeatures(image) for image in tqdm(X)]
+        X_processed = np.array(X_processed)
+        y_processed = np.array(y)
 
+        if len(X_processed.shape) == 3:
+            X_processed = X_processed.reshape(
+                X_processed.shape[0], X_processed.shape[1], X_processed.shape[2], 1
+            )
+        history = self.model.evaluate(X_processed, y_processed)
+        return history
+        
+        
     def DisplayNNSummary(self):
         self.model.summary()

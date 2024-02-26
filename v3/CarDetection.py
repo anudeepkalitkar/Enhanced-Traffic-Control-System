@@ -261,7 +261,6 @@ class CarDetection(BaseEstimator):
         lowerThreshold = np.maximum(majorColor - threshold, 0)
         upperThreshold = np.minimum(majorColor + threshold, 255)
         majorColorMask = cv2.inRange(image, lowerThreshold, upperThreshold)
-
         return majorColorMask
 
     def RemoveMajorColor(self, image: np.ndarray):
