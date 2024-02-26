@@ -25,7 +25,7 @@ WeatherAnnotationsFolder = (
 WeatherImagesFolderPath = (
     "../../MSCourseProject Dataset/Boulder Traffic Cam Datasets/Images/"
 )
-CarAnnotationsFolder = "../../MSCourseProject Dataset/CarsDataset/Annotations/"
+processedAnnotationsFolder = "../../MSCourseProject Dataset/CarsDataset/Annotations/"
 CarImagesFolderPath = "../../MSCourseProject Dataset/CarsDataset/Images/"
 
 
@@ -78,86 +78,78 @@ def ValidateWeatherPrediction():
 
 def TrainCarDetection():
     earlyStoppingCBK = EarlyStopping(
-        monitor="val_loss", patience=10, verbose=1, mode="min"
+        monitor="val_mean_squared_error", patience=15, verbose=1, mode="min"
     )
     reduceLRPlateauCBK = ReduceLROnPlateau(
-        monitor="val_loss", factor=0.1, patience=5, verbose=1, mode="min"
+        monitor="val_mean_squared_error", factor=0.1, patience=5, verbose=1, mode="min"
     )
     modelCallbacks = [earlyStoppingCBK, reduceLRPlateauCBK]
-
+    modelOptimizer = "adam"
+    modelMetrics = ["mean_squared_error", "accuracy"]
+    modelEpochs = 100
+    modelBatchSize = 32
+    modelInputShape = (540, 960)
     print("Creating Model")
-    carDetection = CarDetection(NN_callbacks=modelCallbacks)
-    print("Loading DataSet")
-    carImageDataset, carAnnotations, imageWidth, imageHeight = carDetection.LoadDataset(
-        CarAnnotationsFolder, CarImagesFolderPath
+    carDetection = CarDetection(
+        modelCallbacks=modelCallbacks,
+        modelOptimizer=modelOptimizer,
+        modelMetrics=modelMetrics,
+        modelEpochs=modelEpochs,
+        modelBatchSize=modelBatchSize,
+        modelInputShape=modelInputShape,
     )
-    print(carImageDataset.shape, carAnnotations.shape)
-    start = 0
-    print("Training Model")
-    carDetection.fit(carImageDataset, carAnnotations)
-    
-    # for i in range(1, 11):
-    #     end = start + carImageDataset.shape[0] // 10
-    #     carDetection.fit(carImageDataset[start:end], carAnnotations[start:end])
-    #     start = end
-
-    modelSaved = SaveModels(carDetection.NN_model, "CarDetectionModel")
-    if modelSaved:
-        print("Model Trained and Saved !!!!")
-
-
-def ValidateCarDetection():
-    earlyStoppingCBK = EarlyStopping(
-        monitor="val_loss", patience=10, verbose=1, mode="min"
+    imageDataset, annotations = carDetection.LoadDataset(
+        processedAnnotationsFolder, CarImagesFolderPath
     )
-    reduceLRPlateauCBK = ReduceLROnPlateau(
-        monitor="val_loss", factor=0.1, patience=5, verbose=1, mode="min"
+    processedDataset, processedAnnotations, imageWidth, imageHeight = (
+        carDetection.PreProcessDataset(imageDataset, annotations)
     )
-    modelCallbacks = [earlyStoppingCBK, reduceLRPlateauCBK]
-    NN_model = load_model("SavedModels/CarDetectionModel.h5")
-    carDetection = CarDetection(NN_model=NN_model, NN_callbacks=modelCallbacks)
-    carImageDataset, carAnnotations, imageWidth, imageHeight = carDetection.LoadDataset(
-        CarAnnotationsFolder, CarImagesFolderPath
-    )
+    
+    carDetection.CreateNNModel()
+    carDetection.DisplayNNSummary()
+    carDetection.fit(processedDataset, processedAnnotations)
+    
+    # start = 0
+    # for i in range(1,11):
+    #     end = start + processedDataset.shape[0] // 10
+    #     carDetection.fit(processedDataset[start:end], processedAnnotations[start:end])
+    
+    index = random.randint(0, len(processedDataset))
+    
+    for index in range(len(processedDataset)):
+        testingImage = processedDataset[index]
 
-    index = random.randint(0, len(carImageDataset))
-    testingImage = carImageDataset[index]
-
-    preds = carDetection.predict(np.array([testingImage]))[0]
-    print(len(carAnnotations[index]), len(preds))
-    print(carAnnotations[index])
-    print(preds)
-    
-    bBoxes = []
-    for i in range(0, len(carAnnotations[index]), 3):
-        if(carAnnotations[index][i]):
-            bBox = [
-            
-                    carAnnotations[index][i+1] * imageHeight,
-                    carAnnotations[index][i + 2] * imageWidth,
-            
-            ]
-            bBoxes.append(bBox)
-        
-    BBtestingImage = DrawBoundaryBoxs(testingImage, bBoxes)
-    ShowImage("test", BBtestingImage)
-    
-    
-    bBoxes = []
-    for i in range(0, len(preds),3):
-        if(preds[i]>0.5):
-            bBox = [
-                preds[i+1] * imageHeight, preds[i + 2] * imageWidth
+        preds = carDetection.predict(np.array([testingImage]))[0]
+        for i in range(41):
+            if( preds[i]>0.5):
+                print(processedAnnotations[index][i],1)
+            else:
+                print(processedAnnotations[index][i],0)
                 
-            ]
-            if(bBox[0]>=0 and bBox[1]>=0 ):
+        bBoxes = []
+        for i in range(0, len(processedAnnotations[index])//3):
+            if processedAnnotations[index][i]>0.5:
+                bBox = [
+                    abs(processedAnnotations[index][i + 41] * imageHeight),
+                    abs(processedAnnotations[index][i + 82 ] * imageWidth),
+                ]
                 bBoxes.append(bBox)
-            
-    BBtestingImage = DrawBoundaryBoxs(testingImage, bBoxes)
-    ShowImage("pred", BBtestingImage)
 
+        BBtestingImage = DrawPoints(testingImage, bBoxes)
 
-# TrainWeatherPrediction()
-# ValidateWeatherPrediction()
+        bBoxes = []
+        for i in range(0, 41):
+            if preds[i]>0.5:
+                bBox = [
+                    preds[i + 41] * imageHeight,
+                    preds[i + 82 ] * imageWidth,
+                ]
+                print(bBox)
+                bBoxes.append(bBox)
+
+        BBtestingImage = DrawPoints(BBtestingImage, bBoxes, (0,0,255))
+        ShowImage("pred", BBtestingImage,)
+
+    return carDetection
+
 TrainCarDetection()
-ValidateCarDetection()

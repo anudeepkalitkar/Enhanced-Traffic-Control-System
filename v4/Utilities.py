@@ -7,7 +7,8 @@ import copy
 modelDir = "./SavedModels/"
 if not os.path.exists(modelDir):
     os.mkdir(modelDir)
-    
+
+
 def SaveModels(model: Sequential, modelName: str, modelDir: str = modelDir):
     try:
         model.save(modelDir + modelName + ".h5")
@@ -15,11 +16,14 @@ def SaveModels(model: Sequential, modelName: str, modelDir: str = modelDir):
     except Exception as e:
         print("Could Not save the model with Exception:", e)
         return False
-    
-def ShowImage( imageName: str, image: np.ndarray):
+
+
+def ShowImage(imageName: str, image: np.ndarray):
     cv2.imshow(imageName, image)
     cv2.waitKey(0)
+    cv2.destroyAllWindows()
     return None
+
 
 def DisplayPrediction(image: np.ndarray, weather: str = None):
     if not weather:
@@ -38,6 +42,19 @@ def DisplayPrediction(image: np.ndarray, weather: str = None):
     return image
 
 
+def DrawPoints(
+    image: np.ndarray,
+    points: list,
+    color: tuple = (0, 255, 0),
+    thickness: int = 5,
+):
+    pointsImage = copy.deepcopy(image)
+    for [x1, y1] in points:
+        pointsImage = cv2.circle(
+            pointsImage, (int(x1), int(y1)), radius=2, color=color, thickness=thickness
+        )
+    return pointsImage
+
 
 def DrawBoundaryBoxs(
     image: np.ndarray,
@@ -46,7 +63,8 @@ def DrawBoundaryBoxs(
     thickness: int = 5,
 ):
     boundaryBoxImage = copy.deepcopy(image)
-    
-    for [x1, y1] in boundryBoxes:
-        boundaryBoxImage = cv2.circle(boundaryBoxImage, (int(x1), int(y1)),radius=2,color=color,thickness=thickness)
+    for [[x1, y1], [x2, y2]] in boundryBoxes:
+        boundaryBoxImage = cv2.rectangle(
+            boundaryBoxImage, (int(x1), int(y1)), (int(x2), int(y2)), color, thickness
+        )
     return boundaryBoxImage

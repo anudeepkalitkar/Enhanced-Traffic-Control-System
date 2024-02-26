@@ -2,14 +2,15 @@ import os
 import cv2
 import json
 import numpy as np
+import tensorflow as tf
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 from sklearn.cluster import KMeans
 from sklearn.base import BaseEstimator
 from sklearn.model_selection import train_test_split
-from keras.models import Sequential, Model
+from keras.models import Sequential, Model, load_model
 from keras.layers import Conv2D, MaxPool2D, Dense, Flatten, Dropout, Input
-from keras.losses import categorical_crossentropy, huber
+from keras.losses import binary_crossentropy, huber
 
 
 class CarDetection(BaseEstimator):
@@ -24,26 +25,25 @@ class CarDetection(BaseEstimator):
         bilateralFilter_sigmaSpace: float = 17,
         canny_lowerThreshold: float = 0,
         canny_upperThreshold: float = 0,
-        NN_lossFunction=None,
-        NN_optimizer: str = None,
-        NN_metrics: list = None,
-        NN_inputShape: tuple = None,
+        modelOptimizer: str = None,
+        modelMetrics: list = None,
+        modelInputShape: tuple = None,
         maxNumVehicles: int = None,
-        NN_epochs: int = None,
-        NN_batchSize: int = None,
-        NN_callbacks: list = None,
+        modelEpochs: int = None,
+        modelBatchSize: int = None,
+        modelCallbacks: list = None,
         cameraMargin: dict = None,
-        NN_model: Sequential = None,
+        modelPath: str = None,
         # NN_lossFunction=None,
-        # NN_optimizer: str = "adam",
-        # NN_metrics: list = ["mean_squared_error", "accuracy"],
-        # NN_inputShape: tuple = (540, 960),
+        # modelOptimizer: str = "adam",
+        # modelMetrics: list = ["mean_squared_error", "accuracy"],
+        # modelInputShape: tuple = (540, 960),
         # maxNumVehicles: int = 123,
-        # NN_epochs: int = 100,
-        # NN_batchSize: int = 32,
-        # NN_callbacks: list = [],
+        # modelEpochs: int = 100,
+        # modelBatchSize: int = 32,
+        # modelCallbacks: list = [],
         # cameraMargin: dict = {},
-        # NN_model: Sequential = None,
+        # model: Sequential = None,
     ):
         self.BW_lowerWhite = BW_lowerWhite
         self.BW_upperWhite = BW_upperWhite
@@ -54,16 +54,16 @@ class CarDetection(BaseEstimator):
         self.bilateralFilter_sigmaSpace = bilateralFilter_sigmaSpace
         self.canny_lowerThreshold = canny_lowerThreshold
         self.canny_upperThreshold = canny_upperThreshold
-        self.NN_lossFunction = NN_lossFunction
-        self.NN_optimizer = NN_optimizer
-        self.NN_metrics = NN_metrics
-        self.NN_inputShape = NN_inputShape
+        self.modelOptimizer = modelOptimizer
+        self.modelMetrics = modelMetrics
+        self.modelInputShape = modelInputShape
         self.maxNumVehicles = maxNumVehicles
-        self.NN_epochs = NN_epochs
-        self.NN_batchSize = NN_batchSize
-        self.NN_callbacks = NN_callbacks
+        self.modelEpochs = modelEpochs
+        self.modelBatchSize = modelBatchSize
+        self.modelCallbacks = modelCallbacks
         self.cameraMargin = cameraMargin
-        self.NN_model = NN_model
+        if modelPath != None:
+            self.model = load_model(modelPath, custom_objects=self.CustomLossFunction)
 
     def LoadDataset(self, annotationsFolder: str, imagesFolderPath: str):
         if not (os.path.isdir(annotationsFolder) and os.path.isdir(imagesFolderPath)):
@@ -92,7 +92,7 @@ class CarDetection(BaseEstimator):
         return imageDataset, annotations
 
     def ResizeImage(self, capturedImage: np.ndarray, bBoxs: list, resizeScale=None):
-        newDimentions = (self.NN_inputShape[1], self.NN_inputShape[0])
+        newDimentions = (self.modelInputShape[1], self.modelInputShape[0])
         if type(resizeScale) == type(int):
             newDimentions = (
                 int(capturedImage.shape[1] * resizeScale / 100),
@@ -117,21 +117,25 @@ class CarDetection(BaseEstimator):
         for annotation in annotationList:
             if maxVehicles < len(annotation):
                 maxVehicles = len(annotation)
-        self.maxNumVehicles = maxVehicles 
-        annotations = np.zeros((len(annotationList), maxVehicles*2, 2))
+        self.maxNumVehicles = maxVehicles
+
+        annotations = np.zeros((len(annotationList), 3, maxVehicles))
         height, width = imageDataset[0].shape[:2]
-        
-        for i in range(len(annotationList)):
-            for j in range(maxVehicles):
-                annotations[i,j] = 0
-                
+
         for i, bBoxAnnotation in enumerate(annotationList):
             for j, bBox in enumerate(bBoxAnnotation):
                 if j < maxVehicles:
+                    # x1 = bBox[0][0] / height
+                    # y1 = bBox[0][1] / width
+                    # x2 = bBox[1][0] / height
+                    # y2 = bBox[1][1] / width
                     x = abs(bBox[0][0] + bBox[1][0]) / (2 * height)
                     y = abs(bBox[0][1] + bBox[1][1]) / (2 * width)
-                    annotations[i, maxVehicles+j] = [ x, y]
-                    annotations[i, j] = 1
+                    annotations[i, 0, j] = 1
+                    annotations[i, 1, j ] = x
+                    annotations[i, 2 , j] = y
+                    # annotations[i, j + maxVehicles + 2 + j] = x2
+                    # annotations[i, j + maxVehicles + 3 + j] = y2
 
         annotations = annotations.reshape(len(annotationList), -1)
         return imageDataset, annotations
@@ -147,11 +151,11 @@ class CarDetection(BaseEstimator):
             resizedAnnotations.append(resizedBBoxs)
 
         height, width = resizedImages[0].shape[:2]
-        processedDataset, processedAnnotations = (
-            self.ConvertDatasettoNumpy(resizedImages, resizedAnnotations)
+        processedDataset, processedAnnotations = self.ConvertDatasettoNumpy(
+            resizedImages, resizedAnnotations
         )
         # nonMajorColorImage = self.RemoveMajorColor(capturedImage)
-        
+
         return processedDataset, processedAnnotations, width, height
 
     def CannyEdgeConverstion(self, capturedImage: np.ndarray):
@@ -194,7 +198,7 @@ class CarDetection(BaseEstimator):
         return cannyEdgeImage
 
     def CreateNNModel(self):
-        inputLayer = Input(shape=(self.NN_inputShape[0], self.NN_inputShape[1], 1))
+        inputLayer = Input(shape=(self.modelInputShape[0], self.modelInputShape[1], 1))
         layer1 = Conv2D(
             16,
             (3, 3),
@@ -222,29 +226,27 @@ class CarDetection(BaseEstimator):
         flattenLayer = Flatten()(layer3)
 
         classificationOutput = Dense(
-            self.maxNumVehicles, activation="softmax", name="classification_output"
+            self.maxNumVehicles, activation="sigmoid", name="classificationOutput"
         )(flattenLayer)
-        bboxOutput = Dense(4, activation="linear", name="bbox_output")(flattenLayer)
+    
+        bboxOutput = Dense(
+          (  self.maxNumVehicles * 2), activation="linear", name="bboxOutput"
+        )(flattenLayer)
+        model = Model(inputs=inputLayer, outputs=[tf.concat([classificationOutput,bboxOutput],axis=1) ])
 
-        NN_model = Model(inputs=inputLayer, outputs=[classificationOutput, bboxOutput])
-
-        NN_model.compile(
-            loss=self.NN_lossFunction,
-            optimizer=self.NN_optimizer,
-            metrics=self.NN_metrics,
+        model.compile(
+            loss=self.CustomLossFunction,
+            optimizer=self.modelOptimizer,
+            metrics=self.modelMetrics,
         )
-        return NN_model
+        self.model = model
+        return True
 
     def CustomLossFunction(self, y_true, y_pred):
-        y_true_cls, y_true_bbox = (
-            y_true[..., : self.maxNumVehicles],
-            y_true[..., self.maxNumVehicles :],
-        )
-        y_pred_cls, y_pred_bbox = (
-            y_pred[..., : self.maxNumVehicles],
-            y_pred[..., self.maxNumVehicles :],
-        )
-        classificationLoss = categorical_crossentropy(y_true_cls, y_pred_cls)
+        y_true_cls, y_true_bbox = tf.split(y_true, [self.maxNumVehicles, self.maxNumVehicles * 2], axis=-1)
+        y_pred_cls, y_pred_bbox = tf.split(y_pred, [self.maxNumVehicles, self.maxNumVehicles * 2], axis=-1)
+ 
+        classificationLoss = binary_crossentropy(y_true_cls, y_pred_cls)
         bboxLoss = huber(y_true_bbox, y_pred_bbox)
         totalLoss = classificationLoss + bboxLoss
         return totalLoss
@@ -254,13 +256,13 @@ class CarDetection(BaseEstimator):
         X_train: np.ndarray,
         y_train: np.ndarray,
     ):
-        self.NN_model.fit(
+        self.model.fit(
             X_train,
             y_train,
-            self.NN_batchSize,
-            self.NN_epochs,
+            self.modelBatchSize,
+            self.modelEpochs,
             validation_split=0.2,
-            callbacks=self.NN_callbacks,
+            callbacks=self.modelCallbacks,
         )
 
     def fit(self, X, y):
@@ -282,7 +284,7 @@ class CarDetection(BaseEstimator):
         return self
 
     def predict(self, X, y=None):
-        X_processed = [self.PreProcessImage(image) for image in tqdm(X)]
+        X_processed = [self.ExtractImageFeatures(image) for image in tqdm(X)]
         X_processed = np.array(X_processed)
 
         if len(X_processed.shape) == 3:
@@ -290,7 +292,7 @@ class CarDetection(BaseEstimator):
                 X_processed.shape[0], X_processed.shape[1], X_processed.shape[2], 1
             )
 
-        return self.NN_model.predict(X_processed)
+        return self.model.predict(X_processed)
 
     def DisplayNNSummary(self):
-        self.NN_model.summary()
+        self.model.summary()
