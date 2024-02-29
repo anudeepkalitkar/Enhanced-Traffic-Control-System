@@ -10,7 +10,7 @@ from keras.callbacks import (
 )
 from Utilities import *
 from keras.models import load_model
-
+import keras
 warnings.filterwarnings("ignore")
 physicalDevices = tf.config.list_physical_devices("GPU")
 print(physicalDevices)
@@ -83,7 +83,7 @@ def TrainCarDetection(startIndex=0, allparamsandmetrics: list = []):
     hyperParametersRanges = {
         "BW_lowerWhite": [[0, 0, 0], [0, 0, 168]],
         "BW_upperWhite": [[180, 255, 255], [172, 111, 255]],
-        "BW_thresh": [0, 127, 255],
+        "BW_thresh": [127, 255],
         "BW_maxval": [255],
         "bilateralFilter_d": [
             -1,
@@ -95,32 +95,33 @@ def TrainCarDetection(startIndex=0, allparamsandmetrics: list = []):
             1.0,
             25.0,
             50.0,
-            75.0,
-            100.0,
+            # 75.0,
+            # 100.0,
         ],
-        "bilateralFilter_sigmaSpace": [
-            1.0,
-            25.0,
-            50.0,
-            75.0,
-            100.0,
-        ],
-        "canny_lowerThreshold": [
-            1,
-            50,
-            100,
-        ],
-        "canny_upperThreshold": [
-            100,
-            150,
-            200,
-        ],
+        # "bilateralFilter_sigmaSpace": [
+        #     1.0,
+        #     25.0,
+        #     50.0,
+        #     # 75.0,
+        #     # 100.0,
+        # ],
+        # "canny_lowerThreshold": [
+        #     1,
+        #     50,
+        #     100,
+        # ],
+        # "canny_upperThreshold": [
+        #     100,
+        #     150,
+        #     200,
+        # ],
     }
 
     paramGrids = [
         dict(zip(hyperParametersRanges.keys(), values))
         for values in product(*hyperParametersRanges.values())
     ]
+    print(len(paramGrids))
 
     earlyStoppingCBK = EarlyStopping(
         monitor="val_mean_squared_error", patience=20, verbose=1, mode="min"
@@ -175,8 +176,9 @@ def TrainCarDetection(startIndex=0, allparamsandmetrics: list = []):
             paramsandmetrics["accuracy"] = history[2]
             allparamsandmetrics.append(paramsandmetrics)
             del carDetection
-            tf.keras.backend.clear_session()
+            keras.backend.clear_session()
             gc.collect()
+            
             # index = random.randint(0, len(processedDataset))
 
             # for index in range(len(processedDataset)):

@@ -204,15 +204,15 @@ class CarDetection(BaseEstimator):
             self.bilateralFilter_sigmaColor,
             self.bilateralFilter_sigmaSpace,
         )
-        # imageMedian = np.median(capturedImage)
-        # lowerThreshold = max(0, (0.7 * imageMedian))
-        # upperThreshold = min(255, (0.7 * imageMedian))
-        # cannyEdgeImage = cv2.Canny(
-        #     bilateralFilter, lowerThreshold, upperThreshold
-        # )
+        imageMedian = np.median(capturedImage)
+        lowerThreshold = max(0, (0.7 * imageMedian))
+        upperThreshold = min(255, (0.7 * imageMedian))
         cannyEdgeImage = cv2.Canny(
-            bilateralFilter, self.canny_lowerThreshold, self.canny_upperThreshold
+            bilateralFilter, lowerThreshold, upperThreshold
         )
+        # cannyEdgeImage = cv2.Canny(
+        #     bilateralFilter, self.canny_lowerThreshold, self.canny_upperThreshold
+        # )
         return cannyEdgeImage
 
     def BlackWhiteConverstion(self, originalImage: np.ndarray):
