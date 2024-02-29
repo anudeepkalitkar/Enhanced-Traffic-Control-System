@@ -134,9 +134,10 @@ def TrainCarDetection(startIndex=0, allparamsandmetrics: list = []):
     modelEpochs = 100
     modelBatchSize = 32
     modelInputShape = (540, 960)
-    print(len(paramGrids))
+    print("StartIndex", startIndex)
     try:
         for i in range(startIndex, len(paramGrids)):
+            startIndex1 = i
             paramGrid = paramGrids[i]
             carDetection = CarDetection(
                 BW_lowerWhite=paramGrid["BW_lowerWhite"],
@@ -165,35 +166,69 @@ def TrainCarDetection(startIndex=0, allparamsandmetrics: list = []):
             )
 
             carDetection.CreateNNModel()
-            carDetection.DisplayNNSummary()
+            # carDetection.DisplayNNSummary()
             carDetection.fit(processedDataset, processedAnnotations)
             history = carDetection.evaluate(processedDataset, processedAnnotations)
             paramsandmetrics = paramGrid
             paramsandmetrics["loss"] = history[0]
             paramsandmetrics["mean_squared_error"] = history[1]
             paramsandmetrics["accuracy"] = history[2]
-            paramsandmetrics["startIndex"] = i
             allparamsandmetrics.append(paramsandmetrics)
+            del carDetection
             tf.keras.backend.clear_session()
             gc.collect()
+            # index = random.randint(0, len(processedDataset))
+
+            # for index in range(len(processedDataset)):
+            #     testingImage = processedDataset[index]
+            #     preds = carDetection.predict(np.array([testingImage]))[0]
+            #     bBoxes = []
+            #     for i in range(0, len(processedAnnotations[index])//3):
+            #         if processedAnnotations[index][i]>0.5:
+            #             bBox = [
+            #                 abs(processedAnnotations[index][i + 41] * imageHeight),
+            #                 abs(processedAnnotations[index][i + 82 ] * imageWidth),
+            #             ]
+            #             bBoxes.append(bBox)
+            #     BBtestingImage = DrawPoints(testingImage, bBoxes)
+            #     bBoxes = []
+            #     for i in range(0, 41):
+            #         if preds[i]>0.5:
+            #             bBox = [
+            #                 preds[i + 41] * imageHeight,
+            #                 preds[i + 82 ] * imageWidth,
+            #             ]
+            #             # print(bBox)
+            #             bBoxes.append(bBox)
+
+            #     BBtestingImage = DrawPoints(BBtestingImage, bBoxes, (0,0,255))
+            #     ShowImage("pred", BBtestingImage,)
 
         return True
     except Exception as e:
-        with open("allparamsandmetrics.json","r") as f:
-            json.dump({"allparamsandmetrics": allparamsandmetrics}, f)
-        print(e)
+        with open("allparamsandmetrics.json","w") as f:
+            json.dump({"allparamsandmetrics": allparamsandmetrics, "startIndex": startIndex1}, f)
+        # print(e)
         return False, i, allparamsandmetrics
 
 
 # return carDetection
 
-returnvalue = True
-startIndex = 0
-allparamsandmetrics = []
+returnvalue = True   
+if(os.path.exists("./allparamsandmetrics.json")):
+    jsonFile = json.load(open("./allparamsandmetrics.json","r"))
+    allparamsandmetrics = jsonFile['allparamsandmetrics']
+    startIndex = jsonFile['startIndex']
+else:
+    startIndex = 0
+    allparamsandmetrics = []
+ 
 while returnvalue:
     returnvalue, startIndex, allparamsandmetrics = TrainCarDetection(
         startIndex, allparamsandmetrics
-    )
+    )   
+
+    
 
 
 # start = 0
@@ -201,29 +236,4 @@ while returnvalue:
 #     end = start + processedDataset.shape[0] // 10
 #     carDetection.fit(processedDataset[start:end], processedAnnotations[start:end])
 
-# index = random.randint(0, len(processedDataset))
 
-# for index in range(len(processedDataset)):
-#     testingImage = processedDataset[index]
-#     preds = carDetection.predict(np.array([testingImage]))[0]
-#     bBoxes = []
-#     for i in range(0, len(processedAnnotations[index])//3):
-#         if processedAnnotations[index][i]>0.5:
-#             bBox = [
-#                 abs(processedAnnotations[index][i + 41] * imageHeight),
-#                 abs(processedAnnotations[index][i + 82 ] * imageWidth),
-#             ]
-#             bBoxes.append(bBox)
-#     BBtestingImage = DrawPoints(testingImage, bBoxes)
-#     bBoxes = []
-#     for i in range(0, 41):
-#         if preds[i]>0.5:
-#             bBox = [
-#                 preds[i + 41] * imageHeight,
-#                 preds[i + 82 ] * imageWidth,
-#             ]
-#             # print(bBox)
-#             bBoxes.append(bBox)
-
-#     BBtestingImage = DrawPoints(BBtestingImage, bBoxes, (0,0,255))
-#     ShowImage("pred", BBtestingImage,)
